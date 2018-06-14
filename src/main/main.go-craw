@@ -1,0 +1,114 @@
+package main
+
+import (
+   "fmt"
+   "github.com/PuerkitoBio/goquery"
+   "log"
+   //"s3api"
+   "database/sql"
+    _ "github.com/go-sql-driver/mysql"
+   "strconv"  
+)
+
+var (  
+    commonurl = "https://studygolang.com"
+)
+
+type DbWork struct{
+     Dsn string
+}
+
+type Data struct{
+     Title string
+     Turl string
+     User_name string
+     User_url string
+     Click string
+}
+
+func getpageinfo(db *sql.DB, pagefullurl string) {  
+    doc, err := goquery.NewDocument(pagefullurl)  
+    if err != nil {  
+        log.Fatal(err)  
+    }  
+    doc.Find("div.topic").Each(func(i int, contentSelection *goquery.Selection) {  
+        title := contentSelection.Find("div.title a").Text()  
+        topicurl, _ := contentSelection.Find("div.title a").Eq(0).Attr("href")  
+        userid := contentSelection.Find("div.meta a").Find("strong").Text()  
+        userurl, _ := contentSelection.Find("dt.avatar a").Eq(0).Attr("href")  
+        click := contentSelection.Find("div.pull-right a").Text()  
+        if click == "" {  
+            click = "0"  
+        }  
+        d := Data{}
+        d.Title = title  
+        d.Turl = commonurl + topicurl  
+        d.User_name = userid  
+        d.User_url = commonurl + userurl  
+        d.Click = click
+        fmt.Print(d)    
+        dbmanager(db, d)  
+    })  
+}  
+  
+  
+func dbmanager(db *sql.DB, info Data){ 
+    //  fmt.Print(info[0])  
+    var sqlinfo string = "INSERT INTO  topic(runoob_title) VALUES('" + info.Turl + "')"  
+    stmt, err := db.Prepare(sqlinfo)  
+    if err != nil {  
+        fmt.Println("insert data error: %v\n", err)  
+        return  
+    }  
+    stmt.Exec()  
+}
+
+func ExampleScrape() {
+  doc, err := goquery.NewDocument("http://metalsucks.net")
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  // Find the review items
+  doc.Find(".sidebar-reviews article .content-block").Each(func(i int, s *goquery.Selection) {
+    // For each item found, get the band and title
+    band := s.Find("a").Text()
+    title := s.Find("i").Text()
+    fmt.Printf("Review %d: %s - %s\n", i, band, title)
+  })
+}
+
+func init(){
+    fmt.Print(m)
+}
+var m = map[int]string{1:"s", 2:"d"}
+func main(){
+
+    fmt.Print("sdf")
+    fmt.Print("\n")
+    //s3api.Say()
+    ExampleScrape()
+    dw := DbWork{Dsn : "root:My1234!56@tcp(localhost:3306)/test?charset=utf8"}
+    db, err := sql.Open("mysql",dw.Dsn) 
+    if err != nil {  
+        panic(err.Error())  
+    }  
+    defer db.Close()
+    var pagelasturl string = ""  
+    var index int = 0 
+    pageurl := "https://studygolang.com/topics?p="
+    for {  
+        index++  
+        temp := strconv.Itoa(index)  
+        pagelasturl = pageurl + temp  
+        doc, _ := goquery.NewDocument(pagelasturl)  
+        if doc.Find("div.topic").Text() == "" {  
+            break  
+        }  
+        getpageinfo(db, pagelasturl)  
+        fmt.Println(pagelasturl)  
+        temp = ""  
+        pagelasturl = ""  
+    }  
+    defer db.Close()
+}

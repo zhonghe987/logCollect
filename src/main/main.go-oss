@@ -1,0 +1,64 @@
+package main
+
+import (
+    "github.com/minio/minio-go"
+    "log"
+    "fmt"
+)
+
+func main(){
+    endPoint := "10.3.32.149:8000"
+    accessKey := "0555b35654ad1656d804"
+    secretKey := "h7GhxuBLTrlhVUyxSPUKUV8r/2EI4ngqJxD7iBdBYLhwluN30JaT3Q=="
+    useSSL := false
+
+    // Initialize minio client object.
+    minioClient, err := minio.New(endPoint, accessKey, secretKey, useSSL)
+    if err != nil {
+        log.Fatalln(err)
+    }
+    // log.Printf("%#v\n", minioClient)
+    bucketName := "mymusic-2"
+    location := "cn"
+
+    err = minioClient.MakeBucket(bucketName, location)
+    if err != nil {
+ 	// Check to see if we already own this bucket (which happens if you run this twice)
+	exists, err := minioClient.BucketExists(bucketName)
+	if err == nil && exists {
+		log.Printf("We already own %s\n", bucketName)
+	} else {
+		log.Fatalln(err)
+	}
+    }
+    log.Printf("Successfully created %s\n", bucketName)
+    buckets, err := minioClient.ListBuckets()
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    for _, bucket := range buckets {
+        fmt.Printf("%+v\n",bucket)
+        bucket_name := bucket.Name 
+        doneCh := make(chan struct{})
+
+        // Indicate to our routine to exit cleanly upon return.
+        defer close(doneCh)
+
+        isRecursive := true
+        objectCh := minioClient.ListObjects(bucket_name, "", isRecursive, doneCh)
+        for object := range objectCh {
+            if object.Err != nil {
+                fmt.Println(object.Err)
+                return
+            }
+        fmt.Println(object)
+        err = minioClient.RemoveObject(bucket_name, object.Key)
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+        }
+        minioClient.RemoveBucket(bucket_name)
+    }
+}

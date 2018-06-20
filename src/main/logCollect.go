@@ -92,12 +92,14 @@ func pullLog(date time.Time, cmd string, log chan string){
     new_cmd :=cmd + dateString
     out, _ := cmdExec(new_cmd)
     lens := len(out)
-    fmt.Println(lens)
     if lens > 4{
        ks := strings.Split(out[1:lens-4], " ")[1:] 
        for _,k := range(ks){
-            fmt.Printf(k)
-            log <- k
+            str := strings.Replace(k, " ", "", -1)  
+            if len(str)> 0{
+                //fmt.Printf("---%s\n",k)
+                log <- k
+            }
        }
     }
 }

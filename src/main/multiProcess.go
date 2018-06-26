@@ -74,6 +74,16 @@ func memcli(){
         }
     }
 }
+func timeCom(time_1 time.Time, time_2 string) bool {
+    tim_1 := time_1.Format("2006-01-02 15")
+    time_2 = time_2[1:len(time_2)-1]
+    t1, err := time.Parse("2006-01-02 15", tim_1)
+    t2, err := time.Parse("2006-01-02 15", time_2)
+    if err == nil && t2.Before(t1) {
+       return true
+    }    
+    return false
+}
 
 func entriRegexp(regs string, entri string) bool{
      entries := strings.Replace(entri, "\"", "", -1)
@@ -85,44 +95,51 @@ func entriRegexp(regs string, entri string) bool{
     return false
 }
 
-
+func objectDelete(objects string){
+     delete_log_cmd := "sudo radosgw-admin log rm --object=%s"
+     delete_log_cmd_new := fmt.Sprintf(delete_log_cmd, objects)
+     _, err := cmdExec(delete_log_cmd_new) 
+     if err != nil {
+        // Handle error
+        panic(err)
+     }
+}
 func doTask(log Job, id int) {
      object := log.object
-     cmd := "sudo radosgw-admin log show --object="
+     cmd := "sudo radosgw-admin log show --object=%s"
      new_object := strings.Split(object, ",")[0]
-     objects := strings.Replace(new_object, "\"", "", -1)  
-     new_cmd := cmd + objects
-     fmt.Printf("-+++++-%s\n", new_cmd)
-     out, err := cmdExec(new_cmd)
-     if err ==nil{
-         _, err = client.Index().Index("oss").Type("log").Id(string(id)).BodyJson(out).Do(context.Background())
-         fmt.Printf("00000ok\n")
-         if err != nil {
-             // Handle error
-             fmt.Println(err)
-             panic(err)
+     new_cmd := fmt.Sprintf(cmd, new_object)
+     i := 0
+     for{
+         out, err := cmdExec(new_cmd)
+         if err == nil{
+             _, err = client.Index().Index("oss").Type("log").Id(string(id)).BodyJson(out).Do(context.Background())
+             if err != nil {
+                 panic(err)
+             }
+             objectDelete(new_object)
+             break
          }
-         delete_log_cmd := "sudo radosgw-admin log rm --object="
-         delete_log_cmd_new := delete_log_cmd + objects
-         _, err = cmdExec(delete_log_cmd_new)
-         if err != nil {
-            // Handle error
-            fmt.Println(err)
-            panic(err)
+         if i > 3{
+            objectDelete(new_object)
+            break
          }
+         i++
      }
 }
 
-func pullLog(date time.Time, cmd string) {
+func pullLog(cmd string) {
+    
     out, _ := cmdExec(cmd)
     lens := len(out)
     if lens > 4{
+       date := time.Now()
        ks := strings.Split(out[1:lens-4], " ")[1:] 
        for _,k := range(ks){
             str := strings.Replace(k, " ", "", -1)  
             if len(str)> 14{
-                if (entriRegexp(`^[\d]{4}-[\d]{2}-[\d]{2}-[\d]{2}`, k)){
-                        fmt.Printf("---%s\n",k)
+                log_date := str[:11]+" "+str[12:14]+"\""
+                if (entriRegexp(`^[\d]{4}-[\d]{2}-[\d]{2}-[\d]{2}`, k) && timeCom(date, log_date)){
                         job := Job{object : k}
                         JobQueue <- job
                    } 
@@ -204,9 +221,8 @@ func main(){
     ticker := time.NewTicker(30 * time.Second)
     go func() {
         for t := range ticker.C {
-            date := time.Now()
             fmt.Println("\n",t)
-            pullLog(date, cmd)
+            pullLog(cmd)
            }
     }()
     <- done

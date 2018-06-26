@@ -51,7 +51,8 @@ func cmdExec(cmd string) (string, error){
 }
 
 func memcli(){ 
-     client, err := elastic.NewClient(elastic.SetURL("http://10.3.32.181:9200"),
+     var err error
+     client, err = elastic.NewClient(elastic.SetURL("http://10.3.32.181:9200"),
                  elastic.SetSniff(false),
                  elastic.SetHealthcheckInterval(10*time.Second),
                  elastic.SetMaxRetries(5))

@@ -16,11 +16,10 @@ import (
     _ "strconv"
     "runtime"
     "github.com/olivere/elastic"
-    "github.com/sdbaiguanghe/glog"
 )
 var (
     MaxWorker = 50
-    MaxQueue  = 200000
+    MaxQueue  = 2000
     wg        sync.WaitGroup
 )
 
@@ -58,7 +57,7 @@ func memcli(){
                  elastic.SetMaxRetries(5))
      if err != nil {
         fmt.Println(err)
-        glog.Error("error glog")
+        panic("error glog")
      }
      exists, err := client.IndexExists("oss").Do(context.Background())
      if err != nil{
@@ -104,7 +103,7 @@ func objectDelete(objects string){
         panic(err)
      }
 }
-func doTask(log Job, id int) {
+func doTask(log Job) {
      object := log.object
      cmd := "sudo radosgw-admin log show --object=%s"
      new_object := strings.Split(object, ",")[0]
@@ -112,14 +111,16 @@ func doTask(log Job, id int) {
      i := 0
      for{
          out, err := cmdExec(new_cmd)
+         
          if err == nil{
-             _, err = client.Index().Index("oss").Type("log").Id(string(id)).BodyJson(out).Do(context.Background())
+             _, err = client.Index().Index("oss").Type("log").BodyJson(out).Do(context.Background())
              if err != nil {
                  panic(err)
              }
              objectDelete(new_object)
              break
          }
+         panic(err)
          if i > 3{
             objectDelete(new_object)
             break
@@ -159,14 +160,12 @@ func NewWorker() Worker {
 
 func (w Worker) Start() {
     go func() {
-        i := 0
         for {
             select {
             case job := <-JobQueue:
                 // we have received a work request.
 
-                doTask(job, i)
-                i++ 
+                doTask(job)
             case <-w.quit:
                 // we have received a signal to stop
                 return
@@ -218,7 +217,7 @@ func main(){
     }()
     d.Run()
     cmd := "sudo radosgw-admin log list "
-    ticker := time.NewTicker(30 * time.Second)
+    ticker := time.NewTicker(360 * time.Second)
     go func() {
         for t := range ticker.C {
             fmt.Println("\n",t)
